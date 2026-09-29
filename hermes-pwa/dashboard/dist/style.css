@@ -1,0 +1,9 @@
+.hp-page { display: flex; flex-direction: column; gap: 1rem; max-width: 820px; }
+.hp-title { font-size: 1.25rem; font-weight: 600; margin: 0; }
+.hp-sub { color: var(--muted-foreground, #888); font-size: .9rem; margin: .25rem 0 0; }
+.hp-row { display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap; }
+.hp-qr { width: 220px; height: 220px; background: #fff; padding: 10px; border-radius: 12px; }
+.hp-link { font-family: ui-monospace, Menlo, monospace; word-break: break-all; font-size: .95rem; }
+.hp-steps { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
+.hp-muted { color: var(--muted-foreground, #888); font-size: .85rem; }
+.hp-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .75rem; }

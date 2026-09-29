@@ -1,0 +1,11 @@
+{
+  "name": "codex-oauth",
+  "label": "Codex / Claude",
+  "description": "Conectar assinaturas ChatGPT/Codex e Claude Pro/Max via OAuth sem depender do chat.",
+  "icon": "KeyRound",
+  "version": "1.2.1",
+  "tab": { "path": "/codex", "position": "after:models" },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

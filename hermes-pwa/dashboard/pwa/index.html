@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f2f31" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hermes">
+<title>Hermes</title>
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <aside id="list" class="pane list">
+    <header class="bar">
+      <div class="brand"><span class="logo">☤</span><span>Hermes</span></div>
+      <div class="actions">
+        <button id="btn-refresh" class="icon" title="Atualizar" aria-label="Atualizar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></button>
+        <button id="btn-new" class="icon primary" title="Nova conversa" aria-label="Nova conversa"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+    </header>
+    <div class="agentbar">
+      <label for="agent">Agente</label>
+      <select id="agent" class="agent-select"><option value="default">default</option></select>
+      <span id="agent-model" class="agent-model"></span>
+    </div>
+    <div class="search"><input id="search" type="search" placeholder="Buscar conversa" autocomplete="off"></div>
+    <ul id="sessions" class="sessions"></ul>
+    <div id="list-empty" class="empty hidden">Nenhuma conversa ainda. Toque em + para começar.</div>
+  </aside>
+
+  <main id="chat" class="pane chat hidden">
+    <header class="bar">
+      <button id="btn-back" class="icon" aria-label="Voltar"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="title-wrap">
+        <div id="chat-title" class="title">—</div>
+        <div id="chat-sub" class="sub"></div>
+      </div>
+      <div class="actions">
+        <button id="btn-menu" class="icon" aria-label="Opções"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+      </div>
+    </header>
+    <div id="messages" class="messages"></div>
+    <div id="typing" class="typing hidden"><span class="dots"><i></i><i></i><i></i></span><span id="typing-text">pensando…</span></div>
+    <div id="tray" class="tray hidden"></div>
+    <div id="rec" class="rec hidden"><span class="rec-dot"></span><span id="rec-time">0:00</span><span class="co-muted">gravando… toque no microfone para parar</span></div>
+    <form id="composer" class="composer" autocomplete="off">
+      <input id="file" type="file" multiple accept="image/*,audio/*,video/*,.pdf,.txt,.md,.csv,.json,.xml,.html,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip" class="hidden">
+      <button id="btn-attach" type="button" class="icon" aria-label="Anexar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05 12.5 20a5.5 5.5 0 0 1-7.8-7.8l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.2 9.2a1.5 1.5 0 0 1-2.1-2.1L16 6.7"/></svg></button>
+      <textarea id="input" rows="1" placeholder="Mensagem" enterkeyhint="send"></textarea>
+      <button id="btn-mic" type="button" class="icon" aria-label="Gravar áudio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button id="btn-send" type="submit" class="send" aria-label="Enviar"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 11.5 21 3l-8.5 18-1.9-7.6z"/></svg></button>
+    </form>
+  </main>
+
+  <div id="placeholder" class="pane placeholder">
+    <div><div class="logo big">☤</div><p>Escolha uma conversa ou crie uma nova.</p></div>
+  </div>
+</div>
+
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-card">
+    <div class="sheet-title">—</div>
+    <button data-act="rename">Renomear conversa</button>
+    <button data-act="reload">Recarregar mensagens</button>
+    <button data-act="delete" class="danger">Apagar conversa</button>
+    <button data-act="close" class="muted">Cancelar</button>
+  </div>
+</div>
+
+<div id="login" class="login hidden">
+  <form id="login-form" class="login-card">
+    <div class="logo big">☤</div>
+    <h1>Entrar no Hermes</h1>
+    <input id="login-user" placeholder="Usuário" autocomplete="username" required>
+    <input id="login-pass" type="password" placeholder="Senha" autocomplete="current-password" required>
+    <button type="submit" class="primary wide">Entrar</button>
+    <p id="login-err" class="err"></p>
+  </form>
+</div>
+
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <form id="modal-form" class="modal-card">
+    <h2 id="modal-title">Título</h2>
+    <p id="modal-text" class="modal-text hidden"></p>
+    <input id="modal-input" type="text" autocomplete="off" maxlength="120">
+    <div class="modal-actions">
+      <button type="button" id="modal-cancel" class="btn ghost">Cancelar</button>
+      <button type="submit" id="modal-ok" class="btn primary">OK</button>
+    </div>
+  </form>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

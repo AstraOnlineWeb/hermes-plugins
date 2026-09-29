@@ -1,0 +1,11 @@
+{
+  "name": "hermes-pwa",
+  "label": "PWA",
+  "description": "App móvel do Hermes: chat limpo, troca rápida de sessões, instalável no celular.",
+  "icon": "MessageSquare",
+  "version": "1.3.0",
+  "tab": { "path": "/pwa", "position": "after:chat" },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

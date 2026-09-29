@@ -1,0 +1,19 @@
+/* codex-oauth — aba Codex do dashboard */
+.co-page { display: flex; flex-direction: column; gap: 1rem; max-width: 880px; }
+.co-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.co-title { font-size: 1.25rem; font-weight: 600; margin: 0; }
+.co-sub { color: var(--muted-foreground, #888); font-size: 0.875rem; margin: 0.25rem 0 0; }
+.co-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.co-kv { display: grid; grid-template-columns: 140px 1fr; gap: 0.35rem 1rem; font-size: 0.9rem; }
+.co-kv dt { color: var(--muted-foreground, #888); }
+.co-kv dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.co-steps { margin: 0; padding-left: 1.25rem; line-height: 1.7; }
+.co-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 2rem; letter-spacing: 0.15em; font-weight: 700; padding: 0.5rem 1rem; border: 1px dashed var(--border, #555); border-radius: 0.5rem; display: inline-block; user-select: all; }
+.co-link { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.co-muted { color: var(--muted-foreground, #888); font-size: 0.85rem; }
+.co-ok { color: #16a34a; }
+.co-err { color: #dc2626; }
+.co-warn { color: #d97706; }
+.co-select { padding: 0.4rem 0.6rem; border-radius: 0.375rem; border: 1px solid var(--border, #555); background: transparent; color: inherit; min-width: 220px; }
+.co-spin { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: co-rot 0.8s linear infinite; vertical-align: -0.15em; margin-right: 0.4em; }
+@keyframes co-rot { to { transform: rotate(360deg); } }
