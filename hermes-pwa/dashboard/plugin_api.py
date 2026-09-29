@@ -373,6 +373,70 @@ async def run_approval(run_id: str, body: ApprovalBody, profile: Optional[str] =
     return await _proxy_json("POST", f"{_pfx(profile)}/v1/runs/{run_id}/approval", body=payload)
 
 
+# ── modo de aprovação (approvals.mode) ────────────────────────────────────────────
+# manual = sempre pergunta; smart = um modelo auxiliar decide quando perguntar; off = nunca pergunta.
+# Vale por agente (perfil): cada perfil tem o seu config.yaml.
+
+_APPROVAL_MODES = ("manual", "smart", "off")
+
+
+class ApprovalModeBody(BaseModel):
+    mode: str
+
+
+def _profile_config_scope(profile: Optional[str]):
+    """Escopo de config do perfil pedido; sem perfil (ou default) usa o config do próprio painel."""
+    from contextlib import nullcontext
+    prof = (profile or "").strip().lower()
+    if not prof or prof == "default":
+        return nullcontext()
+    if not _PROFILE_RE.match(prof):
+        raise HTTPException(status_code=400, detail="perfil inválido")
+    try:
+        from hermes_cli.web_server_profiles import _config_profile_scope
+    except Exception:
+        raise HTTPException(status_code=501, detail="Esta versão do Hermes não permite ajustar outro agente por aqui.")
+    return _config_profile_scope(prof)
+
+
+def _approval_mode_read() -> str:
+    from hermes_cli.config import load_config
+    mode = str((load_config().get("approvals") or {}).get("mode") or "manual").strip().lower()
+    return mode if mode in _APPROVAL_MODES else "manual"
+
+
+@router.get("/api/approvals")
+def approvals_get(profile: Optional[str] = None) -> Dict[str, Any]:
+    try:
+        with _profile_config_scope(profile):
+            return {"mode": _approval_mode_read(), "modes": list(_APPROVAL_MODES)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Não foi possível ler a configuração: {exc}")
+
+
+@router.post("/api/approvals")
+def approvals_set(body: ApprovalModeBody, profile: Optional[str] = None) -> Dict[str, Any]:
+    mode = (body.mode or "").strip().lower()
+    if mode not in _APPROVAL_MODES:
+        raise HTTPException(status_code=400, detail="modo inválido")
+    try:
+        with _profile_config_scope(profile):
+            from hermes_cli.config import load_config, save_config
+            cfg = load_config()
+            approvals = dict(cfg.get("approvals") or {})
+            approvals["mode"] = mode
+            cfg["approvals"] = approvals
+            save_config(cfg)
+            return {"mode": _approval_mode_read(), "modes": list(_APPROVAL_MODES)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _log.exception("hermes-pwa: falha ao salvar approvals.mode")
+        raise HTTPException(status_code=500, detail=f"Não foi possível salvar: {exc}")
+
+
 # ── transcrição de áudio (STT) ────────────────────────────────────────────────────
 # Configuração feita pela aba do plugin, sem terminal. Grava o mesmo que:
 #   hermes config set GROQ_API_KEY ... ; hermes config set stt.provider groq ; ...

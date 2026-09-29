@@ -164,3 +164,12 @@ button { font: inherit; }
 .ap-status:empty { display: none; }
 .ap-status.ok { color: var(--accent-strong); font-weight: 600; }
 .ap-status.denied { color: var(--danger); font-weight: 600; }
+
+/* configurações: modo de autorização */
+.sheet-text { margin: 0; padding: 0 12px 6px; color: var(--muted); font-size: 13px; }
+.sheet-card .opt { display: flex; flex-direction: column; gap: 2px; border: 1px solid transparent; }
+.sheet-card .opt span { font-size: 13px; color: var(--muted); font-weight: 400; }
+.sheet-card .opt.current { border-color: var(--accent); }
+.sheet-card .opt.current b::after { content: "  ✓ ativo"; color: var(--accent-strong); font-weight: 600; font-size: 13px; }
+.sheet-card .opt.risk b { color: var(--danger); }
+.sheet-card .opt:disabled { opacity: .6; }

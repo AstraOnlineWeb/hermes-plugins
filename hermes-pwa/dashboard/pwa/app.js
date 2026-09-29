@@ -486,6 +486,41 @@
     $("sheet").querySelector(".sheet-title").textContent = sessionTitle(target);
     $("sheet").classList.remove("hidden");
   }
+  // Configurações: modo de autorização de comandos do agente selecionado.
+  var OFF_LABEL = "<b>Não perguntar</b><span>Executa tudo sem pedir. Use só em servidor de teste ou dedicado ao agente.</span>";
+  function markMode(mode) {
+    Array.prototype.forEach.call($("settings").querySelectorAll("[data-mode]"), function (b) {
+      b.classList.toggle("current", b.getAttribute("data-mode") === mode); b.disabled = false;
+      if (b.getAttribute("data-mode") === "off") { b.innerHTML = OFF_LABEL; b.removeAttribute("data-confirm"); }
+    });
+  }
+  function openSettings() {
+    $("settings-sub").textContent = "Agente: " + (state.profile || "default") + ". Carregando…";
+    markMode(""); $("settings").classList.remove("hidden");
+    fetch(API + pq("approvals"), { credentials: "same-origin" })
+      .then(function (r) { if (r.status === 401) { showLogin(); throw new Error("login"); } if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (d) { $("settings-sub").textContent = "Agente: " + (state.profile || "default") + ". Vale para as próximas mensagens."; markMode(d.mode); })
+      .catch(function (e) { if (e.message !== "login") $("settings-sub").textContent = "Não foi possível ler a configuração (" + e.message + ")."; });
+  }
+  $("btn-settings").addEventListener("click", openSettings);
+  $("settings").addEventListener("click", function (e) {
+    var el = e.target.closest ? e.target.closest("button") : null;
+    if (e.target === $("settings") || (el && el.getAttribute("data-act") === "close")) { $("settings").classList.add("hidden"); return; }
+    if (!el || !el.getAttribute("data-mode")) return;
+    var mode = el.getAttribute("data-mode");
+    if (el.classList.contains("current")) return;
+    if (mode === "off" && !el.getAttribute("data-confirm")) {  // segundo toque confirma
+      el.setAttribute("data-confirm", "1");
+      el.innerHTML = "<b>Toque de novo para confirmar</b><span>O agente vai executar qualquer comando sem pedir autorização.</span>";
+      return;
+    }
+    Array.prototype.forEach.call($("settings").querySelectorAll("[data-mode]"), function (b) { b.disabled = true; });
+    fetch(API + pq("approvals"), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: mode }) })
+      .then(function (r) { if (r.status === 401) { showLogin(); throw new Error("login"); } if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 160) || ("HTTP " + r.status)); }); return r.json(); })
+      .then(function (d) { markMode(d.mode); toast(d.mode === "off" ? "Autorização desligada" : (d.mode === "smart" ? "Modo inteligente ativado" : "Vai perguntar sempre")); })
+      .catch(function (e) { markMode(""); if (e.message !== "login") toast("Não foi possível salvar: " + e.message, 4000); });
+  });
+
   $("btn-menu").addEventListener("click", function () { if (state.current) openSheet(state.current); });
   $("sheet").addEventListener("click", function (e) {
     var act = e.target.getAttribute && e.target.getAttribute("data-act");

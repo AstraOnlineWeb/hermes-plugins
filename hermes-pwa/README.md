@@ -15,6 +15,7 @@ os canais, como WhatsApp, Telegram, terminal e painel, e continua qualquer uma d
 - **Imagens**: anexar, colar print ou arrastar. O modelo enxerga a imagem.
 - **Arquivos**: PDF, planilhas, texto e outros, até 25 MB. Ficam em `~/uploads` do agente, que os lê com as ferramentas de arquivo.
 - **Aprovação de comandos**: quando o agente precisa de autorização para um comando perigoso, o pedido aparece no chat com os botões Permitir uma vez, Permitir nesta conversa, Permitir sempre e Negar.
+- **Modo de autorização**: no botão de configurações da lista de conversas dá para escolher entre sempre perguntar, modo inteligente ou não perguntar. Vale por agente.
 - **Voz**: grava pelo microfone e envia como mensagem de voz, com player para ouvir e a transcrição logo abaixo.
 - **Teclado**: Enter envia, Shift+Enter quebra linha.
 - **Tema** claro e escuro automáticos. Em tela larga, lista e chat ficam lado a lado.
