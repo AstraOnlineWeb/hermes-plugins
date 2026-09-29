@@ -344,6 +344,114 @@ async def chat_stream(session_id: str, body: ChatBody, profile: Optional[str] = 
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# ── transcrição de áudio (STT) ────────────────────────────────────────────────────
+# Configuração feita pela aba do plugin, sem terminal. Grava o mesmo que:
+#   hermes config set GROQ_API_KEY ... ; hermes config set stt.provider groq ; ...
+# O Hermes resolve chave e config a cada transcrição: vale na hora, sem reiniciar.
+
+_STT_KEY_ENV = "GROQ_API_KEY"
+_STT_MODEL = "whisper-large-v3"
+_STT_LANGS = {"pt", "en", "es"}
+
+
+class SttBody(BaseModel):
+    key: Optional[str] = None       # vazio = mantém a chave já salva
+    language: str = "pt"
+
+
+def _stt_key() -> str:
+    try:
+        from hermes_cli.config import get_env_value
+        return (get_env_value(_STT_KEY_ENV) or "").strip()
+    except Exception:
+        return (os.environ.get(_STT_KEY_ENV) or "").strip()
+
+
+def _stt_status() -> Dict[str, Any]:
+    cfg: Dict[str, Any] = {}
+    try:
+        from hermes_cli.config import load_config
+        cfg = load_config().get("stt") or {}
+    except Exception:
+        pass
+    key = _stt_key()
+    provider = str(cfg.get("provider") or "")
+    return {
+        "has_key": bool(key),
+        "key_preview": (key[:4] + "…" + key[-4:]) if len(key) >= 12 else "",
+        "provider": provider,
+        "language": str(cfg.get("language") or ""),
+        "model": str((cfg.get("groq") or {}).get("model") or ""),
+        "active": bool(key) and provider == "groq",
+    }
+
+
+async def _stt_check_key(key: str) -> Optional[str]:
+    """Confere a chave no Groq. Devolve None se estiver válida, ou a mensagem de erro."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get("https://api.groq.com/openai/v1/models",
+                                 headers={"Authorization": f"Bearer {key}"})
+    except Exception as exc:
+        return f"Não foi possível falar com o Groq: {exc}"
+    if r.status_code == 200:
+        return None
+    if r.status_code in (401, 403):
+        return "O Groq recusou a chave. Confira se copiou a chave inteira."
+    return f"O Groq respondeu com erro {r.status_code}."
+
+
+@router.get("/api/stt")
+def stt_get() -> Dict[str, Any]:
+    return _stt_status()
+
+
+@router.post("/api/stt")
+async def stt_save(body: SttBody) -> Dict[str, Any]:
+    key = (body.key or "").strip()
+    language = (body.language or "pt").strip().lower()
+    if language not in _STT_LANGS:
+        raise HTTPException(status_code=400, detail="Idioma não suportado.")
+    if key and not _re.fullmatch(r"gsk_[A-Za-z0-9]{20,}", key):
+        raise HTTPException(status_code=400, detail="Chave inválida. A chave do Groq começa com gsk_.")
+    effective = key or _stt_key()
+    if not effective:
+        raise HTTPException(status_code=400, detail="Informe a chave do Groq.")
+    error = await _stt_check_key(effective)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    try:
+        from hermes_cli.config import load_config, save_config, save_env_value
+        if key:
+            save_env_value(_STT_KEY_ENV, key)
+        cfg = load_config()
+        stt = dict(cfg.get("stt") or {})
+        stt["provider"] = "groq"
+        stt["language"] = language
+        groq = dict(stt.get("groq") or {})
+        groq["model"] = _STT_MODEL
+        groq["language"] = language
+        stt["groq"] = groq
+        cfg["stt"] = stt
+        save_config(cfg)
+    except Exception as exc:
+        _log.exception("hermes-pwa: falha ao salvar a configuração de transcrição")
+        raise HTTPException(status_code=500, detail=f"Não foi possível salvar: {exc}")
+    return _stt_status()
+
+
+@router.delete("/api/stt")
+def stt_delete() -> Dict[str, Any]:
+    try:
+        from hermes_cli.config import remove_env_value
+        remove_env_value(_STT_KEY_ENV)
+        os.environ.pop(_STT_KEY_ENV, None)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Não foi possível remover: {exc}")
+    return _stt_status()
+
+
 # Catch-all estático: DEVE ficar por último para não engolir /qr.svg e /api/*.
 @router.get("/{name}", include_in_schema=False)
 def static(name: str):

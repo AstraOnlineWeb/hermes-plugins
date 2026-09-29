@@ -53,7 +53,12 @@ comando `/pwa` devolve o endereço.
 
 ### Transcrição das mensagens de voz
 
-Configure um provedor de transcrição no Hermes. Com o Groq, que tem plano gratuito:
+No painel do Hermes, abra a aba **PWA**, vá até **Transcrição de áudio**, cole a chave do Groq e clique em
+**Salvar e conferir**. O Groq tem plano gratuito; a chave é criada em https://console.groq.com/keys.
+
+A chave é conferida na hora e a transcrição passa a valer para os próximos áudios, sem reiniciar o Hermes.
+
+Quem preferir o terminal:
 
 ```bash
 hermes config set GROQ_API_KEY <sua-chave>

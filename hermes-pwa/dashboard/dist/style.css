@@ -2,8 +2,17 @@
 .hp-title { font-size: 1.25rem; font-weight: 600; margin: 0; }
 .hp-sub { color: var(--muted-foreground, #888); font-size: .9rem; margin: .25rem 0 0; }
 .hp-row { display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap; }
-.hp-qr { width: 220px; height: 220px; background: #fff; padding: 10px; border-radius: 12px; }
+.hp-qr { width: 220px; height: 220px; background: #fff; padding: 10px; border-radius: 12px; box-sizing: border-box; }
 .hp-link { font-family: ui-monospace, Menlo, monospace; word-break: break-all; font-size: .95rem; }
 .hp-steps { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
 .hp-muted { color: var(--muted-foreground, #888); font-size: .85rem; }
 .hp-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .75rem; }
+.hp-form { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: .75rem; }
+.hp-select { height: 2.25rem; padding: 0 .6rem; border-radius: .375rem; border: 1px solid var(--border, #8884); background: var(--background, transparent); color: inherit; font-size: .9rem; }
+.hp-status { font-weight: 600; margin: 0 0 .5rem; }
+.hp-msg { margin: .75rem 0 0; font-size: .9rem; }
+.hp-ok { color: #16a34a; }
+.hp-off { color: var(--muted-foreground, #888); }
+.hp-err { color: #dc2626; }
+.hp-qr svg { width: 100%; height: 100%; display: block; }
+.hp-qr-empty { display: flex; align-items: center; justify-content: center; color: #888; font-size: .85rem; }
