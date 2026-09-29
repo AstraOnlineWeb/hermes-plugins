@@ -3,7 +3,7 @@
   "label": "PWA",
   "description": "App móvel do Hermes: chat limpo, troca rápida de sessões, instalável no celular.",
   "icon": "MessageSquare",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "tab": { "path": "/pwa", "position": "after:chat" },
   "entry": "dist/index.js",
   "css": "dist/style.css",

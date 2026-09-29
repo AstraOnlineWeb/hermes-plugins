@@ -576,7 +576,17 @@
     loadProfiles().then(loadSessions);
     clearInterval(state.pollList); state.pollList = setInterval(function () { if (!state.current || $("chat").classList.contains("hidden")) loadSessions(true); }, 30000);
   }
-  if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(function () { }); }
+  if ("serviceWorker" in navigator) {
+    // Quando uma versão nova do app assume, recarrega uma vez para a tela não ficar com código antigo.
+    var hadController = !!navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadController || reloaded || state.streaming) return;
+      reloaded = true; window.location.reload();
+    });
+    navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" })
+      .then(function (reg) { if (reg && reg.update) reg.update().catch(function () { }); })
+      .catch(function () { });
+  }
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { if (state.current) loadMessages(true); else loadSessions(true); } });
   boot();
 })();

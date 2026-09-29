@@ -1,5 +1,5 @@
 name: hermes-pwa
-version: 1.6.0
+version: 1.6.1
 description: "App móvel do Hermes em formato PWA, instalável no celular: chat estilo mensageiro com todas as sessões, troca de agente (perfis), imagens, arquivos e mensagens de voz com transcrição. Servido pelo próprio dashboard, com aba PWA (QR code) e comando /pwa."
 author: "AstraOnlineWeb"
 kind: standalone
