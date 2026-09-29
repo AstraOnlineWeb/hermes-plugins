@@ -344,6 +344,35 @@ async def chat_stream(session_id: str, body: ChatBody, profile: Optional[str] = 
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# ── aprovação de comandos ─────────────────────────────────────────────────────────
+# O gateway pausa comandos perigosos e emite "approval.request" no stream do chat. O app mostra
+# o pedido com botões e responde por aqui (POST /v1/runs/{run_id}/approval no gateway).
+
+_RUN_ID_RE = _re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+_APPROVAL_CHOICES = {"once", "session", "always", "deny"}
+
+
+class ApprovalBody(BaseModel):
+    choice: str
+    request_id: Optional[str] = None
+
+
+@router.post("/api/runs/{run_id}/approval")
+async def run_approval(run_id: str, body: ApprovalBody, profile: Optional[str] = None) -> Any:
+    if not _RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="execução inválida")
+    choice = (body.choice or "").strip().lower()
+    if choice not in _APPROVAL_CHOICES:
+        raise HTTPException(status_code=400, detail="escolha inválida")
+    payload: Dict[str, Any] = {"choice": choice}
+    request_id = (body.request_id or "").strip()
+    if request_id:
+        if not _RUN_ID_RE.match(request_id):
+            raise HTTPException(status_code=400, detail="pedido inválido")
+        payload["request_id"] = request_id
+    return await _proxy_json("POST", f"{_pfx(profile)}/v1/runs/{run_id}/approval", body=payload)
+
+
 # ── transcrição de áudio (STT) ────────────────────────────────────────────────────
 # Configuração feita pela aba do plugin, sem terminal. Grava o mesmo que:
 #   hermes config set GROQ_API_KEY ... ; hermes config set stt.provider groq ; ...

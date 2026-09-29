@@ -149,3 +149,18 @@ button { font: inherit; }
 .agent-select { flex: 0 1 auto; max-width: 55%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 14px; font-weight: 600; }
 .agent-model { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .badge.agent { background: rgba(15,138,126,.12); color: var(--accent-strong); }
+
+/* pedido de aprovação de comando */
+.msg.approval { border: 1px solid var(--accent); max-width: min(560px, 92%); }
+.ap-title { font-weight: 600; margin-bottom: 6px; }
+.ap-cmd { margin: 0 0 6px; padding: 8px 10px; border-radius: 8px; background: var(--bg); color: var(--text); font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+.ap-why { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.ap-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-btn { border: 1px solid var(--line); background: var(--pane); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+.ap-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ap-btn.deny { border-color: var(--danger); color: var(--danger); }
+.ap-btn:disabled { opacity: .55; cursor: default; }
+.ap-status { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.ap-status:empty { display: none; }
+.ap-status.ok { color: var(--accent-strong); font-weight: 600; }
+.ap-status.denied { color: var(--danger); font-weight: 600; }

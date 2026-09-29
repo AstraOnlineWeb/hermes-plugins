@@ -226,6 +226,42 @@
     scrollBottom();
   }
   function scrollBottom() { var box = $("messages"); box.scrollTop = box.scrollHeight; }
+  // Pedido de aprovação de comando: o agente fica pausado até a pessoa escolher.
+  var APPROVAL_LABELS = { once: "Permitir uma vez", session: "Permitir nesta conversa", always: "Permitir sempre", deny: "Negar" };
+  var APPROVAL_DONE = { once: "Permitido uma vez", session: "Permitido nesta conversa", always: "Permitido sempre", deny: "Negado" };
+  function approvalCard(d, sid) {
+    var prof = state.current && state.current.profile;
+    var box = document.createElement("div"); box.className = "msg assistant approval";
+    var choices = (d.choices && d.choices.length) ? d.choices : ["once", "deny"];
+    box.innerHTML = '<div class="ap-title">O agente pede autorização para executar:</div>' +
+      '<pre class="ap-cmd">' + esc(d.command || "(comando não informado)") + '</pre>' +
+      (d.description ? '<div class="ap-why">Motivo do alerta: ' + esc(d.description) + '</div>' : '') +
+      '<div class="ap-actions"></div><div class="ap-status"></div>';
+    var actions = box.querySelector(".ap-actions"), status = box.querySelector(".ap-status"), settled = false;
+    function lock(text, cls) { settled = true; actions.remove(); status.textContent = text; status.className = "ap-status " + (cls || ""); }
+    choices.forEach(function (c) {
+      if (!APPROVAL_LABELS[c]) return;
+      var b = document.createElement("button"); b.type = "button"; b.textContent = APPROVAL_LABELS[c];
+      b.className = "ap-btn" + (c === "deny" ? " deny" : (c === "once" ? " primary" : ""));
+      b.onclick = function () {
+        if (settled) return;
+        Array.prototype.forEach.call(actions.querySelectorAll("button"), function (x) { x.disabled = true; });
+        status.textContent = "enviando…";
+        fetch(API + pq("runs/" + encodeURIComponent(d.run_id) + "/approval", prof), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choice: c, request_id: d.request_id || null }) })
+          .then(function (r) { if (r.status === 401) { showLogin(); throw new Error("faça login de novo"); } if (!r.ok) return r.text().then(function (t) { throw new Error(r.status === 409 ? "o pedido já expirou" : (t.slice(0, 160) || ("HTTP " + r.status))); }); return r.json(); })
+          .then(function () { lock(APPROVAL_DONE[c], c === "deny" ? "denied" : "ok"); setTyping(true, c === "deny" ? "pensando…" : "executando…"); })
+          .catch(function (e) {
+            if (settled) return;
+            status.textContent = "Não foi possível enviar: " + e.message; status.className = "ap-status denied";
+            Array.prototype.forEach.call(actions.querySelectorAll("button"), function (x) { x.disabled = false; });
+          });
+      };
+      actions.appendChild(b);
+    });
+    $("messages").appendChild(box); scrollBottom();
+    return { expire: function () { if (!settled) lock("Pedido encerrado sem resposta.", "denied"); } };
+  }
+
   function setTyping(on, text) { $("typing").classList.toggle("hidden", !on); if (text) $("typing-text").textContent = text; }
 
   var input = $("input");
@@ -281,12 +317,16 @@
       images.forEach(function (u) { parts.push({ type: "image_url", image_url: { url: u } }); });
       return parts;
     });
+    var approvals = [];
     function handle(ev, data) {
       var d = {}; try { d = JSON.parse(data); } catch (e) { }
+      if (ev === "assistant.completed" || ev === "done" || ev === "error") approvals.forEach(function (c) { c.expire(); });
       if (ev === "assistant.delta") {
         bot.content += d.delta || "";
         if (!botEl) { botEl = bubble(bot); $("messages").appendChild(botEl); }
         botEl.innerHTML = md(bot.content); scrollBottom(); setTyping(true, "escrevendo…");
+      } else if (ev === "approval.request") {
+        approvals.push(approvalCard(d, sid)); setTyping(true, "aguardando sua aprovação…");
       } else if (ev === "tool.progress") {
         var tn = d.tool_name || ""; setTyping(true, tn === "_thinking" ? "pensando…" : ("usando " + tn + "…"));
       } else if (ev === "assistant.completed") {

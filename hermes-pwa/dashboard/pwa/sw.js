@@ -1,6 +1,6 @@
 /* hermes-pwa service worker: guarda a casca do app para abrir rápido e mostrar a tela de login
    mesmo quando a sessão do dashboard expirou (401). Nada de API é cacheado. */
-const VERSION = "hermes-pwa-v7";
+const VERSION = "hermes-pwa-v8";
 const SHELL = ["./", "app.js", "app.css", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
