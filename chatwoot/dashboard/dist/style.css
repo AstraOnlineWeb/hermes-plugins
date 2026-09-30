@@ -21,7 +21,7 @@
 .cw-err { color: #dc2626; }
 .cw-tabs { display: flex; gap: .4rem; margin-bottom: .75rem; }
 .cw-tab { border: 1px solid var(--border, #8884); background: transparent; color: inherit; padding: .35rem .9rem; border-radius: 999px; font-size: .85rem; cursor: pointer; }
-.cw-tab.on { background: var(--foreground, #eee); color: var(--background, #111); border-color: transparent; }
+.cw-tab.on { background: rgba(128, 128, 128, .28); border-color: currentColor; font-weight: 700; }
 .cw-list { margin: 0 0 .75rem; padding-left: 1.2rem; line-height: 1.6; font-size: .92rem; }
 @media (max-width: 520px) { .cw-dl { grid-template-columns: 1fr; gap: .15rem; } .cw-dl dd { margin-bottom: .5rem; } }
 .cw-opts { display: flex; flex-direction: column; gap: .7rem; }
