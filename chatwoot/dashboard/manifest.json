@@ -1,0 +1,11 @@
+{
+  "name": "chatwoot",
+  "label": "Chatwoot",
+  "description": "Canal Chatwoot: o agente responde clientes nas caixas de entrada do Chatwoot.",
+  "icon": "MessageCircle",
+  "version": "1.0.0",
+  "tab": { "path": "/chatwoot", "position": "after:channels" },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

@@ -2,18 +2,20 @@
 
 Plugins da comunidade para o [Hermes Agent](https://github.com/NousResearch/hermes-agent), da Nous Research.
 Feitos para quem roda o Hermes em servidor próprio e quer usar assinatura em vez de chave de API,
-e conversar com o agente pelo celular.
+conversar com o agente pelo celular e colocar o agente para atender clientes.
 
 | Plugin | O que faz |
 |---|---|
 | [`codex-oauth`](codex-oauth/) | Conecta as assinaturas **ChatGPT/Codex** e **Claude Max** por OAuth, direto pelo painel, pelo chat ou pela CLI. Funciona mesmo com o chat em "Setup Required". |
 | [`hermes-pwa`](hermes-pwa/) | App de celular em formato **PWA**, estilo mensageiro: todas as sessões, troca de agente, imagens, arquivos e mensagens de voz com transcrição. |
+| [`chatwoot`](chatwoot/) | Canal **Chatwoot**: o agente atende os clientes nas caixas de entrada do Chatwoot, mantém o contexto por conversa e transfere para um atendente humano. Configuração pela aba do painel. |
 
 ## Instalação
 
 ```bash
 hermes plugins install AstraOnlineWeb/hermes-plugins/codex-oauth --enable
 hermes plugins install AstraOnlineWeb/hermes-plugins/hermes-pwa --enable
+hermes plugins install AstraOnlineWeb/hermes-plugins/chatwoot --enable
 hermes gateway restart
 ```
 
@@ -24,6 +26,7 @@ Reinicie também o dashboard, ou o contêiner inteiro, para as abas novas aparec
 ```bash
 docker exec <container> hermes plugins install AstraOnlineWeb/hermes-plugins/codex-oauth --enable
 docker exec <container> hermes plugins install AstraOnlineWeb/hermes-plugins/hermes-pwa --enable
+docker exec <container> hermes plugins install AstraOnlineWeb/hermes-plugins/chatwoot --enable
 docker restart <container>          # em Swarm: docker service update --force <serviço>
 ```
 
@@ -35,7 +38,7 @@ Os plugins ficam no volume de dados (`/opt/data/plugins`), então sobrevivem a a
 hermes plugins list
 ```
 
-Os dois devem aparecer como `enabled`. No painel surgem as abas **Codex / Claude** e **PWA**.
+Os três devem aparecer como `enabled`. No painel surgem as abas **Codex / Claude**, **PWA** e **Chatwoot**.
 
 ### Atualizar
 

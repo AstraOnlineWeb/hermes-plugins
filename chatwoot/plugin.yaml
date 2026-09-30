@@ -1,0 +1,53 @@
+name: chatwoot
+label: Chatwoot
+kind: platform
+version: 1.0.0
+description: "Canal Chatwoot para o Hermes: o agente responde clientes nas caixas de entrada do Chatwoot como Agent Bot, mantém o contexto por conversa, transfere para um atendente humano e para de responder quando um humano assume. Configuração pela aba Chatwoot do painel."
+author: "AstraOnlineWeb"
+license: MIT
+homepage: https://github.com/AstraOnlineWeb/hermes-plugins
+tags:
+  - chatwoot
+  - atendimento
+  - platform
+  - dashboard
+provides_tools: []
+provides_hooks: []
+python_dependencies: []
+optional_env:
+  - name: CHATWOOT_BASE_URL
+    description: "Endereço do Chatwoot (ex.: https://chat.seudominio.com.br)"
+    prompt: "Endereço do Chatwoot"
+    password: false
+  - name: CHATWOOT_BOT_TOKEN
+    description: "Token de acesso do Agent Bot no Chatwoot"
+    prompt: "Token do Agent Bot"
+    password: true
+  - name: CHATWOOT_WEBHOOK_SECRET
+    description: "Segredo que compõe o endereço do webhook recebido do Chatwoot"
+    prompt: "Segredo do webhook"
+    password: true
+  - name: CHATWOOT_WEBHOOK_PORT
+    description: "Porta local que recebe o webhook (padrão 8646)"
+    prompt: "Porta do webhook"
+    password: false
+  - name: CHATWOOT_WEBHOOK_HOST
+    description: "Endereço de escuta do webhook (padrão 127.0.0.1; use 0.0.0.0 em container)"
+    prompt: "Endereço de escuta"
+    password: false
+  - name: CHATWOOT_REPLY_STATUSES
+    description: "Situações da conversa em que o agente responde (padrão: pending)"
+    prompt: "Situações atendidas"
+    password: false
+  - name: CHATWOOT_ALLOW_ALL_USERS
+    description: "true para atender qualquer contato do Chatwoot"
+    prompt: "Atender todos os contatos"
+    password: false
+  - name: CHATWOOT_ALLOWED_USERS
+    description: "IDs de contatos autorizados, separados por vírgula (alternativa a atender todos)"
+    prompt: "Contatos autorizados"
+    password: false
+  - name: CHATWOOT_HOME_CHANNEL
+    description: "Conversa padrão para avisos e agendamentos, no formato conta:conversa"
+    prompt: "Conversa padrão"
+    password: false
