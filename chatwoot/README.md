@@ -13,8 +13,10 @@ O Hermes entra no Chatwoot como **Agent Bot**. Funciona com qualquer canal ligad
 - **Imagens e áudios**: o agente recebe as imagens e os áudios enviados pelo cliente.
 - **Transferência para humano**: quando o cliente pede ou o agente não resolve, a conversa passa para a fila humana
   (situação "Aberta") com uma nota interna.
-- **Para quando um humano assume**: o agente só responde conversas na situação "Pendente". Em "Aberta" ele se cala.
-- **Devolução ao agente**: mude a conversa para "Pendente" no Chatwoot e o agente volta a atender.
+- **Regras de quando responder**, escolhidas na aba: só em conversas "Pendentes", ou também nas "Abertas",
+  parando quando a conversa é atribuída a um atendente ou a um time.
+- **Desligar em uma conversa**: a etiqueta `sem-bot` (configurável) faz o agente nunca responder naquela conversa.
+- **Devolução ao agente**: volte a conversa para "Pendente", ou tire a atribuição e a etiqueta, conforme o modo.
 - **Escolha do agente**: a aba permite escolher qual agente (perfil) do Hermes atende.
 - **Proteções**: mensagens de cliente que começam com `/` são tratadas como texto comum, e pedidos de aprovação
   de comando nunca são enviados ao cliente (são negados na hora).
@@ -46,6 +48,23 @@ O token de administrador é usado só nessa hora e não fica guardado.
 
 Para usar um bot que já existe: informe o endereço do Chatwoot e o token do bot. Depois copie o webhook
 mostrado na aba para o campo de URL do bot no Chatwoot e ligue o bot à caixa de entrada.
+
+## Quando o agente responde
+
+Na aba **Chatwoot**, bloco **Quando o agente responde**:
+
+| Opção | Comportamento |
+|---|---|
+| Só em conversas pendentes (padrão) | o agente responde em "Pendente". Em "Aberta" ele se cala; para devolver, volte a conversa para "Pendente" |
+| Em conversas pendentes e abertas | o agente continua respondendo com a conversa aberta |
+| Parar quando a conversa for atribuída | com a conversa atribuída a um atendente ou a um time, o agente se cala. Tirando a atribuição, ele volta |
+| Etiqueta que desliga o agente | conversa com a etiqueta (padrão `sem-bot`) nunca é respondida, em qualquer situação |
+
+No modo "pendentes e abertas", quando o agente transfere para um humano ele coloca a etiqueta na conversa,
+porque a conversa aberta e sem atribuição continuaria sendo respondida. Para devolver ao agente, tire a etiqueta.
+
+Se a caixa de entrada usa atribuição automática do Chatwoot, as conversas abertas são atribuídas a um
+atendente logo em seguida, e o agente para nelas.
 
 ## Endereço do webhook
 
@@ -96,7 +115,9 @@ Ficam no `.env` do Hermes. A aba grava as principais.
 | `CHATWOOT_WEBHOOK_SECRET` | gerado | segredo que compõe o endereço do webhook |
 | `CHATWOOT_WEBHOOK_PORT` | `8646` | porta local do webhook |
 | `CHATWOOT_WEBHOOK_HOST` | `127.0.0.1` | endereço de escuta. Em container, `0.0.0.0` |
-| `CHATWOOT_REPLY_STATUSES` | `pending` | situações em que o agente responde, separadas por vírgula |
+| `CHATWOOT_REPLY_STATUSES` | `pending` | situações em que o agente responde: `pending` ou `pending,open` |
+| `CHATWOOT_STOP_WHEN_ASSIGNED` | `false` | `true` faz o agente parar em conversa atribuída a atendente ou time |
+| `CHATWOOT_OFF_LABEL` | `sem-bot` | etiqueta que desliga o agente na conversa |
 | `CHATWOOT_ALLOW_ALL_USERS` | `true` | atende qualquer contato |
 | `CHATWOOT_PUBLIC_URL` | endereço do painel | endereço público do Hermes usado no webhook |
 | `CHATWOOT_HOME_CHANNEL` | | conversa padrão para avisos e agendamentos, no formato `conta:conversa` |

@@ -1,7 +1,7 @@
 name: chatwoot
 label: Chatwoot
 kind: platform
-version: 1.0.0
+version: 1.1.0
 description: "Canal Chatwoot para o Hermes: o agente responde clientes nas caixas de entrada do Chatwoot como Agent Bot, mantém o contexto por conversa, transfere para um atendente humano e para de responder quando um humano assume. Configuração pela aba Chatwoot do painel."
 author: "AstraOnlineWeb"
 license: MIT

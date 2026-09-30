@@ -30,11 +30,13 @@
     var _f = useState({ base_url: "", account_id: "", access_token: "", bot_name: "Hermes", bot_token: "", profile: "default" }), f = _f[0], setF = _f[1];
     var _inb = useState(null), inboxes = _inb[0], setInboxes = _inb[1];
     var _sel = useState({}), sel = _sel[0], setSel = _sel[1];
+    var _bh = useState(null), bh = _bh[0], setBh = _bh[1];   // regras de quando o agente responde
 
     function set(k) { return function (e) { var v = e.target.value; setF(function (o) { var n = Object.assign({}, o); n[k] = v; return n; }); }; }
     function load() {
       return api("config?origin=" + encodeURIComponent(ORIGIN)).then(function (d) {
         setSt(d);
+        setBh(function (cur) { return cur || d.behavior || { reply_open: false, stop_when_assigned: true, off_label: "sem-bot" }; });
         setF(function (o) { return Object.assign({}, o, { base_url: o.base_url || d.base_url || "", account_id: o.account_id || d.account_id || "", profile: d.profile || "default" }); });
         return d;
       });
@@ -86,6 +88,10 @@
       var p = e.target.value;
       run("Salvando…", post("profile", { profile: p })).then(function (d) { setSt(d); return restartAndWait(); }).catch(function () { });
     }
+    function saveBehavior() {
+      run("Salvando…", post("behavior", bh)).then(function (d) { setSt(d); setBh(d.behavior); return restartAndWait(); }).catch(function () { });
+    }
+    function setB(k, v) { setBh(function (o) { var n = Object.assign({}, o); n[k] = v; return n; }); }
     function disconnect() {
       run("Removendo…", api("config", { method: "DELETE" }), "Configuração removida do Hermes. O bot continua existindo no Chatwoot; desligue-o da caixa de entrada por lá.")
         .then(function (d) { setSt(d); return post("restart", {}).catch(function () { }); })
@@ -123,6 +129,32 @@
           h(C.Button, { variant: "outline", onClick: disconnect, disabled: !!busy }, "Desconectar")
         ),
         notice
+      )
+    ) : null;
+
+    var behaviorCard = (connected && bh) ? h(C.Card, null,
+      h(C.CardHeader, null, h(C.CardTitle, null, "Quando o agente responde")),
+      h(C.CardContent, null,
+        h("div", { className: "cw-opts" },
+          h("label", { className: "cw-opt" },
+            h("input", { type: "radio", name: "cw-mode", checked: !bh.reply_open, disabled: !!busy, onChange: function () { setB("reply_open", false); } }),
+            h("span", null, h("b", null, "Só em conversas pendentes"),
+              h("span", { className: "cw-hint" }, "Quando a conversa passa para \"Aberta\", o agente para. Para devolver a ele, volte a conversa para \"Pendente\"."))),
+          h("label", { className: "cw-opt" },
+            h("input", { type: "radio", name: "cw-mode", checked: !!bh.reply_open, disabled: !!busy, onChange: function () { setB("reply_open", true); setB("stop_when_assigned", true); } }),
+            h("span", null, h("b", null, "Em conversas pendentes e abertas"),
+              h("span", { className: "cw-hint" }, "O agente continua respondendo mesmo com a conversa aberta.")))
+        ),
+        h("label", { className: "cw-check cw-sub-opt" },
+          h("input", { type: "checkbox", checked: !!bh.stop_when_assigned, disabled: !!busy, onChange: function (e) { setB("stop_when_assigned", e.target.checked); } }),
+          h("span", null, "Parar quando a conversa for atribuída a um atendente ou a um time")),
+        bh.reply_open && !bh.stop_when_assigned ? h("p", { className: "cw-msg cw-err" }, "Assim o agente só para em conversas com a etiqueta abaixo. O atendente e o agente podem responder ao mesmo tempo.") : null,
+        h("div", { className: "cw-grid" },
+          field("Etiqueta que desliga o agente na conversa", h(C.Input, { value: bh.off_label, disabled: !!busy, onChange: function (e) { setB("off_label", e.target.value); } }),
+            "Conversa com essa etiqueta nunca é respondida pelo agente, em qualquer situação. Tire a etiqueta para ele voltar.")),
+        bh.reply_open ? h("p", { className: "cw-muted" }, "Neste modo, quando o agente transfere para um humano ele coloca essa etiqueta na conversa, para não continuar respondendo.") : null,
+        h("div", { className: "cw-actions" },
+          h(C.Button, { onClick: saveBehavior, disabled: !!busy }, "Salvar regras"))
       )
     ) : null;
 
@@ -181,8 +213,9 @@
         h("ul", { className: "cw-list" },
           h("li", null, "O Hermes entra no Chatwoot como um bot. Conversas novas da caixa de entrada ficam com o bot (situação \"Pendente\") e o agente responde."),
           h("li", null, "Cada conversa do Chatwoot é uma sessão no Hermes: o agente lembra do que já foi dito nela."),
-          h("li", null, "Quando o agente transfere, ou quando um atendente abre a conversa, ela passa para \"Aberta\" e o agente para de responder."),
-          h("li", null, "Para devolver uma conversa ao agente, mude a situação dela para \"Pendente\" no Chatwoot.")
+          h("li", null, "No modo padrão, quando o agente transfere ou um atendente abre a conversa, ela passa para \"Aberta\" e o agente para. Para devolver a ele, volte a conversa para \"Pendente\"."),
+          h("li", null, "Em \"Quando o agente responde\" dá para fazer o agente atender também conversas abertas e parar só quando forem atribuídas a um atendente ou a um time."),
+          h("li", null, "Para desligar o agente em uma conversa específica, coloque nela a etiqueta configurada (padrão: sem-bot).")
         ),
         h("p", { className: "cw-muted" }, "Atenção: quem escreve aqui são clientes. Use um agente próprio para atendimento, sem acesso ao terminal e a arquivos do servidor.")
       )
@@ -193,7 +226,7 @@
         h("h1", { className: "cw-title" }, "Chatwoot"),
         h("p", { className: "cw-sub" }, "O agente do Hermes atende os clientes nas caixas de entrada do Chatwoot e passa para um humano quando precisa.")),
       st === null ? h("p", { className: "cw-muted" }, "Carregando…") : null,
-      statusCard, setupCard, how);
+      statusCard, behaviorCard, setupCard, how);
   }
 
   window.__HERMES_PLUGINS__.register("chatwoot", ChatwootPage);

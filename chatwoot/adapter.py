@@ -7,14 +7,20 @@ Entrada : POST /chatwoot/webhook/<segredo>  (evento message_created, mensagens "
 Saída   : POST {base}/api/v1/accounts/<conta>/conversations/<conversa>/messages
 Conversa: chat_id = "<conta>:<conversa>" (uma sessão do Hermes por conversa do Chatwoot)
 
-O agente só responde enquanto a conversa está com o bot (situação "pending" por padrão). Quando um
-atendente humano assume (situação "open"), o agente se cala. Para transferir, o agente termina a
-resposta com o marcador [TRANSFERIR]: o marcador é removido, a mensagem é enviada e a conversa passa
-para a fila humana.
+Quando o agente responde (configurável na aba do painel):
+  - padrão: só em conversas "pending" (com o bot). Em "open" (atendimento humano) ele se cala.
+  - CHATWOOT_REPLY_STATUSES=pending,open: responde também em conversas abertas.
+  - CHATWOOT_STOP_WHEN_ASSIGNED=true: para quando a conversa está atribuída a um atendente ou a um time.
+  - CHATWOOT_OFF_LABEL (sem-bot): conversa com essa etiqueta nunca é respondida.
+
+Para transferir, o agente termina a resposta com o marcador [TRANSFERIR]: o marcador é removido, a
+mensagem é enviada e a conversa passa para a fila humana ("open"). Se o agente também responde em
+conversas abertas, a transferência marca a conversa com a etiqueta que desliga o bot.
 
 Variáveis (no .env do Hermes): CHATWOOT_BASE_URL, CHATWOOT_BOT_TOKEN, CHATWOOT_WEBHOOK_SECRET,
 CHATWOOT_WEBHOOK_PORT (8646), CHATWOOT_WEBHOOK_HOST (127.0.0.1), CHATWOOT_REPLY_STATUSES (pending),
-CHATWOOT_ALLOW_ALL_USERS, CHATWOOT_ALLOWED_USERS, CHATWOOT_HOME_CHANNEL.
+CHATWOOT_STOP_WHEN_ASSIGNED (false), CHATWOOT_OFF_LABEL (sem-bot), CHATWOOT_ALLOW_ALL_USERS,
+CHATWOOT_ALLOWED_USERS, CHATWOOT_HOME_CHANNEL.
 """
 
 from __future__ import annotations
@@ -50,6 +56,7 @@ _MAX_BODY_BYTES = 1_048_576  # 1 MiB: os eventos do Chatwoot são pequenos
 _HANDOFF_RE = re.compile(r"\s*\[(?:TRANSFERIR|TRANSFERIR_HUMANO|HANDOFF|HUMANO)\]\s*", re.IGNORECASE)
 _CHAT_ID_RE = re.compile(r"^(\d+):(\d+)$")
 NO_HOME = "0:0"
+HANDOFF_FALLBACK = "Vou transferir você para um de nossos atendentes. Aguarde um momento, por favor."
 HANDOFF_NOTE = "Conversa transferida pelo agente de IA (Hermes) para o atendimento humano."
 
 PLATFORM_HINT = (
@@ -74,6 +81,41 @@ def _base_url() -> str:
 def _reply_statuses() -> set:
     raw = _cfg("CHATWOOT_REPLY_STATUSES", "pending")
     return {s.strip().lower() for s in raw.split(",") if s.strip()} or {"pending"}
+
+
+DEFAULT_OFF_LABEL = "sem-bot"
+_TRUTHY = {"1", "true", "yes", "sim", "on"}
+
+
+def _stop_when_assigned() -> bool:
+    return _cfg("CHATWOOT_STOP_WHEN_ASSIGNED", "false").lower() in _TRUTHY
+
+
+def _off_label() -> str:
+    return _cfg("CHATWOOT_OFF_LABEL", DEFAULT_OFF_LABEL).lower()
+
+
+def conversation_labels(conversation: Dict[str, Any]) -> List[str]:
+    labels = conversation.get("labels")
+    return [str(x).strip().lower() for x in labels if str(x).strip()] if isinstance(labels, list) else []
+
+
+def human_assignment(conversation: Dict[str, Any]) -> str:
+    """Quem está com a conversa: "atendente X", "time Y" ou "" quando ninguém (bots não contam)."""
+    meta = conversation.get("meta") if isinstance(conversation.get("meta"), dict) else {}
+    assignee = meta.get("assignee") if isinstance(meta.get("assignee"), dict) else None
+    assignee_type = str(meta.get("assignee_type") or (assignee or {}).get("type") or "").lower()
+    is_bot = "bot" in assignee_type
+    if assignee and assignee.get("id") and not is_bot:
+        return f"atendente {assignee.get('name') or assignee.get('id')}"
+    if conversation.get("assignee_id") and not is_bot:
+        return f"atendente {conversation.get('assignee_id')}"
+    team = meta.get("team") if isinstance(meta.get("team"), dict) else None
+    if team and team.get("id"):
+        return f"time {team.get('name') or team.get('id')}"
+    if conversation.get("team_id"):
+        return f"time {conversation.get('team_id')}"
+    return ""
 
 
 def _parse_chat_id(chat_id: str) -> Optional[Tuple[str, str]]:
@@ -130,6 +172,9 @@ class ChatwootAdapter(BasePlatformAdapter):
         self._port = int(_cfg("CHATWOOT_WEBHOOK_PORT", str(DEFAULT_WEBHOOK_PORT)) or DEFAULT_WEBHOOK_PORT)
         self._host = _cfg("CHATWOOT_WEBHOOK_HOST", DEFAULT_WEBHOOK_HOST) or DEFAULT_WEBHOOK_HOST
         self._statuses = _reply_statuses()
+        self._stop_assigned = _stop_when_assigned()
+        self._off_label = _off_label()
+        self._labels: Dict[str, List[str]] = {}  # últimas etiquetas vistas por conversa
         self._runner = None
         self._http: Optional["aiohttp.ClientSession"] = None
         from gateway.platforms.helpers import MessageDeduplicator
@@ -189,6 +234,8 @@ class ChatwootAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=f"chat_id inválido para o Chatwoot: {chat_id!r} (esperado conta:conversa)")
         account_id, conversation_id = ids
         text, handoff = split_handoff(content)
+        if handoff and not text:  # o agente mandou só o marcador: o cliente não fica sem resposta
+            text = HANDOFF_FALLBACK
         result = SendResult(success=True)
         if text:
             url = _conversation_url(self._base, account_id, conversation_id, "messages")
@@ -218,7 +265,17 @@ class ChatwootAdapter(BasePlatformAdapter):
             await self._post(
                 _conversation_url(self._base, account_id, conversation_id, "messages"),
                 {"content": HANDOFF_NOTE, "message_type": "outgoing", "private": True})
-            self._handed_off.add(f"{account_id}:{conversation_id}")
+            chat_key = f"{account_id}:{conversation_id}"
+            if "open" in self._statuses and self._off_label:
+                # O agente também atende conversas abertas: sem a etiqueta ele continuaria respondendo.
+                labels = sorted(set(self._labels.get(chat_key, [])) | {self._off_label})
+                status, body = await self._post(
+                    _conversation_url(self._base, account_id, conversation_id, "labels"), {"labels": labels})
+                if status >= 400:
+                    logger.error("[chatwoot] não foi possível etiquetar a conversa %s: %s %s", chat_key, status, str(body)[:200])
+                else:
+                    self._labels[chat_key] = labels
+            self._handed_off.add(chat_key)
             logger.info("[chatwoot] conversa %s:%s transferida para atendimento humano", account_id, conversation_id)
         except Exception as exc:
             logger.error("[chatwoot] falha ao transferir a conversa %s:%s: %s", account_id, conversation_id, exc)
@@ -287,6 +344,11 @@ class ChatwootAdapter(BasePlatformAdapter):
         if self._dedup.is_duplicate(f"{account_id}:{conversation_id}:{message_id}"):
             return web.json_response({"ok": True, "ignored": "duplicada"})
 
+        self._labels[f"{account_id}:{conversation_id}"] = conversation_labels(conversation)
+        if len(self._labels) > 5000:  # não cresce sem limite
+            for key in list(self._labels)[:1000]:
+                self._labels.pop(key, None)
+
         sender = payload.get("sender") or {}
         sender_id = str(sender.get("id") or conversation.get("contact_inbox", {}).get("contact_id") or conversation_id)
         sender_name = str(sender.get("name") or "Cliente")
@@ -326,9 +388,15 @@ class ChatwootAdapter(BasePlatformAdapter):
         if payload.get("private"):
             return "nota interna"
         conversation = payload.get("conversation") or {}
+        if self._off_label and self._off_label in conversation_labels(conversation):
+            return f"conversa com a etiqueta '{self._off_label}'"
         status = str(conversation.get("status") or "").lower()
         if status and status not in self._statuses:
             return f"conversa em '{status}' (atendimento humano)"
+        if self._stop_assigned:
+            owner = human_assignment(conversation)
+            if owner:
+                return f"conversa atribuída a {owner}"
         if not (payload.get("account") or {}).get("id") and not conversation.get("account_id"):
             return "sem conta"
         if not conversation.get("id") and not conversation.get("display_id"):

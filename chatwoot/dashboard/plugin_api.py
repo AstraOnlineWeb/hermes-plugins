@@ -23,7 +23,9 @@ router = APIRouter()
 _PORT_DEFAULT = "8646"
 _ROUTE_NAME = "chatwoot"
 _PROFILE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
-_ENV_KEYS = ("CHATWOOT_BASE_URL", "CHATWOOT_BOT_TOKEN", "CHATWOOT_WEBHOOK_SECRET", "CHATWOOT_ALLOW_ALL_USERS",
+_OFF_LABEL_DEFAULT = "sem-bot"
+_LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
+_ENV_KEYS = ("CHATWOOT_REPLY_STATUSES", "CHATWOOT_STOP_WHEN_ASSIGNED", "CHATWOOT_OFF_LABEL", "CHATWOOT_BASE_URL", "CHATWOOT_BOT_TOKEN", "CHATWOOT_WEBHOOK_SECRET", "CHATWOOT_ALLOW_ALL_USERS",
              "CHATWOOT_ACCOUNT_ID", "CHATWOOT_BOT_ID", "CHATWOOT_BOT_NAME", "CHATWOOT_INBOXES", "CHATWOOT_PUBLIC_URL")
 
 
@@ -121,6 +123,15 @@ def _set_routed_profile(profile: str) -> None:
     save_config(cfg)
 
 
+def _behavior() -> Dict[str, Any]:
+    statuses = {x.strip().lower() for x in (_env("CHATWOOT_REPLY_STATUSES") or "pending").split(",") if x.strip()}
+    return {
+        "reply_open": "open" in statuses,
+        "stop_when_assigned": _env("CHATWOOT_STOP_WHEN_ASSIGNED").lower() in ("1", "true", "yes", "sim", "on"),
+        "off_label": _env("CHATWOOT_OFF_LABEL") or _OFF_LABEL_DEFAULT,
+    }
+
+
 async def _listening() -> bool:
     import httpx
     port = _env("CHATWOOT_WEBHOOK_PORT") or _PORT_DEFAULT
@@ -150,6 +161,7 @@ async def _status(origin: Optional[str] = None) -> Dict[str, Any]:
         "public_base": _public_base(origin),
         "profile": _routed_profile(),
         "profiles": _profiles(),
+        "behavior": _behavior(),
     }
 
 
@@ -203,6 +215,12 @@ class ManualBody(BaseModel):
 
 class ProfileBody(BaseModel):
     profile: str
+
+
+class BehaviorBody(BaseModel):
+    reply_open: bool = False
+    stop_when_assigned: bool = True
+    off_label: str = _OFF_LABEL_DEFAULT
 
 
 def _check_profile(profile: str) -> str:
@@ -276,6 +294,18 @@ async def setup(body: SetupBody) -> Dict[str, Any]:
         await _chatwoot("POST", base, f"/api/v1/accounts/{account}/inboxes/{inbox_id}/set_agent_bot", token,
                         {"agent_bot": bot["id"]})
 
+    # Etiqueta que desliga o bot em uma conversa: criada na conta para aparecer na lista do Chatwoot.
+    label = _behavior()["off_label"]
+    try:
+        existing = {str(x.get("title") or "").lower() for x in _payload_list(
+            await _chatwoot("GET", base, f"/api/v1/accounts/{account}/labels", token))}
+        if label not in existing:
+            await _chatwoot("POST", base, f"/api/v1/accounts/{account}/labels", token, {
+                "title": label, "description": "O agente de IA (Hermes) não responde conversas com esta etiqueta",
+                "color": "#D93025", "show_on_sidebar": True})
+    except HTTPException as exc:
+        _log.info("chatwoot: etiqueta %s não criada (%s); ela funciona mesmo assim", label, exc.detail)
+
     try:
         _save_env({
             "CHATWOOT_BASE_URL": base, "CHATWOOT_BOT_TOKEN": bot_token, "CHATWOOT_WEBHOOK_SECRET": secret,
@@ -312,6 +342,24 @@ async def set_profile(body: ProfileBody) -> Dict[str, Any]:
     profile = _check_profile(body.profile)
     try:
         _set_routed_profile(profile)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Não foi possível salvar: {exc}")
+    return await _status()
+
+
+@router.post("/behavior")
+async def set_behavior(body: BehaviorBody) -> Dict[str, Any]:
+    """Quando o agente responde: só pendentes, ou pendentes e abertas; parar em conversa atribuída;
+    etiqueta que desliga o agente em uma conversa."""
+    label = (body.off_label or _OFF_LABEL_DEFAULT).strip().lower()
+    if not _LABEL_RE.match(label):
+        raise HTTPException(status_code=400, detail="Etiqueta inválida. Use letras minúsculas, números, traço ou sublinhado.")
+    try:
+        _save_env({
+            "CHATWOOT_REPLY_STATUSES": "pending,open" if body.reply_open else "pending",
+            "CHATWOOT_STOP_WHEN_ASSIGNED": "true" if body.stop_when_assigned else "false",
+            "CHATWOOT_OFF_LABEL": label,
+        })
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Não foi possível salvar: {exc}")
     return await _status()

@@ -24,3 +24,8 @@
 .cw-tab.on { background: var(--foreground, #eee); color: var(--background, #111); border-color: transparent; }
 .cw-list { margin: 0 0 .75rem; padding-left: 1.2rem; line-height: 1.6; font-size: .92rem; }
 @media (max-width: 520px) { .cw-dl { grid-template-columns: 1fr; gap: .15rem; } .cw-dl dd { margin-bottom: .5rem; } }
+.cw-opts { display: flex; flex-direction: column; gap: .7rem; }
+.cw-opt { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+.cw-opt input { margin-top: .25rem; }
+.cw-opt > span { display: flex; flex-direction: column; gap: .15rem; }
+.cw-sub-opt { margin: .9rem 0 .25rem; }
