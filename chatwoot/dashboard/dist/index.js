@@ -89,7 +89,11 @@
       run("Salvando…", post("profile", { profile: p })).then(function (d) { setSt(d); return restartAndWait(); }).catch(function () { });
     }
     function saveBehavior() {
-      run("Salvando…", post("behavior", bh)).then(function (d) { setSt(d); setBh(d.behavior); return restartAndWait(); }).catch(function () { });
+      run("Salvando…", post("behavior", bh)).then(function (d) {
+        setSt(d); setBh(d.behavior);
+        if (d.configured) return restartAndWait();
+        setMsg({ ok: true, text: "Regras salvas. Elas passam a valer quando o Chatwoot for conectado." });
+      }).catch(function () { });
     }
     function setB(k, v) { setBh(function (o) { var n = Object.assign({}, o); n[k] = v; return n; }); }
     function disconnect() {
@@ -132,7 +136,7 @@
       )
     ) : null;
 
-    var behaviorCard = (connected && bh) ? h(C.Card, null,
+    var behaviorCard = (st && bh) ? h(C.Card, null,
       h(C.CardHeader, null, h(C.CardTitle, null, "Quando o agente responde")),
       h(C.CardContent, null,
         h("div", { className: "cw-opts" },
@@ -154,7 +158,8 @@
             "Conversa com essa etiqueta nunca é respondida pelo agente, em qualquer situação. Tire a etiqueta para ele voltar.")),
         bh.reply_open ? h("p", { className: "cw-muted" }, "Neste modo, quando o agente transfere para um humano ele coloca essa etiqueta na conversa, para não continuar respondendo.") : null,
         h("div", { className: "cw-actions" },
-          h(C.Button, { onClick: saveBehavior, disabled: !!busy }, "Salvar regras"))
+          h(C.Button, { onClick: saveBehavior, disabled: !!busy }, "Salvar regras")),
+        connected ? null : notice
       )
     ) : null;
 
@@ -203,7 +208,7 @@
           h("button", { type: "button", className: "cw-tab" + (manual ? " on" : ""), onClick: function () { setManual(true); } }, "Manual")),
         manual ? manualForm : autoForm,
         st.configured ? h("div", { className: "cw-actions" }, h(C.Button, { variant: "outline", onClick: function () { setEditing(false); }, disabled: !!busy }, "Cancelar")) : null,
-        notice
+        (busy && busy !== "Salvando…") || (msg && msg.text.indexOf("Regras salvas") !== 0) ? notice : null
       )
     ) : null;
 
@@ -226,7 +231,7 @@
         h("h1", { className: "cw-title" }, "Chatwoot"),
         h("p", { className: "cw-sub" }, "O agente do Hermes atende os clientes nas caixas de entrada do Chatwoot e passa para um humano quando precisa.")),
       st === null ? h("p", { className: "cw-muted" }, "Carregando…") : null,
-      statusCard, behaviorCard, setupCard, how);
+      statusCard, connected ? behaviorCard : null, setupCard, connected ? null : behaviorCard, how);
   }
 
   window.__HERMES_PLUGINS__.register("chatwoot", ChatwootPage);
