@@ -274,6 +274,18 @@
     var text = input.value.trim();
     var atts = state.attachments.slice();
     if ((!text && !atts.length) || state.streaming || !state.current) return;
+    // /new e /reset: no PWA cada conversa tem o proprio id, entao o comando do gateway
+    // nao troca a conversa aberta. Cria uma nova aqui, como no Telegram.
+    var mNew = !atts.length && /^\/(new|reset)(?:\s+(.*))?$/i.exec(text);
+    if (mNew) {
+      input.value = ""; input.style.height = "auto";
+      var newTitle = (mNew[2] || "").trim() || null;
+      req(pq("sessions"), { method: "POST", body: { title: newTitle } }).then(function (d) {
+        var s = (d && d.session) || d; s.profile = state.profile; state.sessions.unshift(s); renderSessions(); openSession(s);
+        toast("Nova conversa criada");
+      }).catch(function (e) { toast("Não criou: " + e.message); });
+      return;
+    }
     if (atts.some(function (a) { return a.kind === "image" && !a.url; })) { toast("Aguarde o processamento da imagem"); return; }
     input.value = ""; input.style.height = "auto"; state.attachments = []; renderTray();
     var sid = state.current.id;
