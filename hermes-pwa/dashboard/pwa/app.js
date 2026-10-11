@@ -140,7 +140,8 @@
     $("messages").innerHTML = "";
     $("chat").classList.remove("hidden"); $("list").classList.add("hidden");
     renderSessions();
-    loadMessages();
+    var lm = loadMessages();
+    if (lm && lm.then) lm.then(resumePendingRun); else resumePendingRun();
     clearInterval(state.pollMsgs); state.pollMsgs = setInterval(function () { if (!state.streaming && state.current) loadMessages(true); }, 12000);
     setTimeout(function () { $("input").focus(); }, 50);
   }
@@ -317,33 +318,59 @@
       images.forEach(function (u) { parts.push({ type: "image_url", image_url: { url: u } }); });
       return parts;
     });
-    var approvals = [];
-    function handle(ev, data) {
-      var d = {}; try { d = JSON.parse(data); } catch (e) { }
-      if (ev === "assistant.completed" || ev === "done" || ev === "error") approvals.forEach(function (c) { c.expire(); });
-      if (ev === "assistant.delta") {
-        bot.content += d.delta || "";
-        if (!botEl) { botEl = bubble(bot); $("messages").appendChild(botEl); }
-        botEl.innerHTML = md(bot.content); scrollBottom(); setTyping(true, "escrevendo…");
-      } else if (ev === "approval.request") {
-        approvals.push(approvalCard(d, sid)); setTyping(true, "aguardando sua aprovação…");
-      } else if (ev === "tool.progress") {
-        var tn = d.tool_name || ""; setTyping(true, tn === "_thinking" ? "pensando…" : ("usando " + tn + "…"));
-      } else if (ev === "assistant.completed") {
-        if (d.content) bot.content = d.content;
-        bot.timestamp = Date.now() / 1000;
-        if (!botEl) { botEl = bubble(bot); $("messages").appendChild(botEl); }
-        botEl.innerHTML = md(bot.content) + '<span class="time">' + esc(fmtTime(bot.timestamp)) + "</span>"; scrollBottom();
-      } else if (ev === "error") {
-        var msg = (d.message && (d.message.detail || d.message)) || d.error || "erro";
-        $("messages").appendChild(bubble({ role: "assistant", content: typeof msg === "string" ? msg : JSON.stringify(msg), error: true })); scrollBottom();
-      }
-    }
-
+    var ctx = { sid: sid, profile: state.current && state.current.profile, text: text, bot: bot, botEl: botEl, approvals: [], runId: null, finished: false };
     prep.then(function (message) {
       setTyping(true, "pensando…");
-      return fetch(API + pq("sessions/" + encodeURIComponent(sid) + "/chat/stream", state.current && state.current.profile), { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "Accept": "text/event-stream" }, body: JSON.stringify({ message: message }) });
+      // Execução em segundo plano: o agente continua no servidor mesmo se o celular suspender o app.
+      return req(pq("sessions/" + encodeURIComponent(sid) + "/runs", ctx.profile), { method: "POST", body: { message: message } });
     })
+      .then(function (r) {
+        ctx.runId = r.run_id;
+        savePendingRun({ sid: sid, profile: ctx.profile, run_id: r.run_id, text: text, started: Date.now() });
+        return streamRun(ctx);
+      })
+      .catch(function (e) { if (e.message !== "login") { $("messages").appendChild(bubble({ role: "assistant", content: "Falha: " + e.message, error: true })); scrollBottom(); } finishRun(ctx); });
+  }
+
+  // ───────────────────────── execução em segundo plano (acompanhar, retomar, concluir)
+  var RUN_KEY = "hermes-pwa-run";
+  function savePendingRun(o) { try { if (o) localStorage.setItem(RUN_KEY, JSON.stringify(o)); else localStorage.removeItem(RUN_KEY); } catch (e) { } }
+  function pendingRun() { try { return JSON.parse(localStorage.getItem(RUN_KEY) || "null"); } catch (e) { return null; } }
+  var TERMINAL = { "run.completed": 1, "run.failed": 1, "run.cancelled": 1, "run.interrupted": 1 };
+
+  function runEvent(ctx, ev, d) {
+    if (ctx.finished) return;
+    var bot = ctx.bot;
+    if (ev === "message.delta" || ev === "assistant.delta") {
+      bot.content += d.delta || "";
+      if (!ctx.botEl) { ctx.botEl = bubble(bot); $("messages").appendChild(ctx.botEl); }
+      ctx.botEl.innerHTML = md(bot.content); scrollBottom(); setTyping(true, "escrevendo…");
+    } else if (ev === "approval.request") {
+      ctx.approvals.push(approvalCard(d, ctx.sid)); setTyping(true, "aguardando sua aprovação…");
+    } else if (ev === "tool.started" || ev === "tool.progress") {
+      var tn = d.tool_name || d.name || ""; setTyping(true, tn === "_thinking" ? "pensando…" : (tn ? "usando " + tn + "…" : "trabalhando…"));
+    } else if (ev === "run.completed" || ev === "assistant.completed") {
+      ctx.approvals.forEach(function (c) { c.expire(); });
+      var out = d.output !== undefined ? d.output : d.content;
+      if (out) bot.content = out;
+      bot.timestamp = Date.now() / 1000;
+      if (!ctx.botEl) { ctx.botEl = bubble(bot); $("messages").appendChild(ctx.botEl); }
+      ctx.botEl.innerHTML = md(bot.content) + '<span class="time">' + esc(fmtTime(bot.timestamp)) + "</span>"; scrollBottom();
+      finishRun(ctx);
+    } else if (ev === "run.failed" || ev === "error") {
+      ctx.approvals.forEach(function (c) { c.expire(); });
+      var msg = d.error || (d.message && (d.message.detail || d.message)) || "erro";
+      $("messages").appendChild(bubble({ role: "assistant", content: typeof msg === "string" ? msg : JSON.stringify(msg), error: true })); scrollBottom();
+      finishRun(ctx);
+    } else if (ev === "run.cancelled" || ev === "run.interrupted") {
+      ctx.approvals.forEach(function (c) { c.expire(); });
+      $("messages").appendChild(bubble({ role: "system", content: "Execução interrompida." })); scrollBottom();
+      finishRun(ctx);
+    }
+  }
+
+  function streamRun(ctx) {
+    return fetch(API + pq("runs/" + encodeURIComponent(ctx.runId) + "/events", ctx.profile), { credentials: "same-origin", headers: { "Accept": "text/event-stream" } })
       .then(function (r) {
         if (r.status === 401) { showLogin(); throw new Error("login"); }
         if (!r.ok || !r.body) return r.text().then(function (t) { throw new Error(t.slice(0, 200) || ("HTTP " + r.status)); });
@@ -356,21 +383,75 @@
             parts.forEach(function (chunk) {
               var ev = "message", data = "";
               chunk.split("\n").forEach(function (ln) { if (ln.indexOf("event:") === 0) ev = ln.slice(6).trim(); else if (ln.indexOf("data:") === 0) data += ln.slice(5).trim(); });
-              if (data) handle(ev, data);
+              if (data) { var d = {}; try { d = JSON.parse(data); } catch (e) { } runEvent(ctx, ev, d); }
             });
             return pump();
           });
         }
         return pump();
       })
-      .catch(function (e) { if (e.message !== "login") { $("messages").appendChild(bubble({ role: "assistant", content: "Falha: " + e.message, error: true })); scrollBottom(); } })
-      .finally(function () {
-        state.streaming = false; $("btn-send").disabled = false; setTyping(false);
-        if (bot.content) state.messages.push(bot);
-        var s = null; for (var i = 0; i < state.sessions.length; i++) if (state.sessions[i].id === sid) s = state.sessions[i];
-        if (s) { s.preview = bot.content || text || "📎 anexo"; s.last_active = Date.now() / 1000; s.message_count = (s.message_count || 0) + 2; }
-        renderSessions();
+      .then(function () { if (!ctx.finished) return resumeRun(ctx); })
+      .catch(function (e) {
+        // conexão caiu (app em segundo plano, rede oscilou): o agente segue no servidor; acompanha pelo status
+        if (e.message === "login") { finishRun(ctx); return; }
+        if (!ctx.finished) return resumeRun(ctx);
       });
+  }
+
+  function resumeRun(ctx) {
+    setTyping(true, "o agente continua trabalhando…");
+    return new Promise(function (resolve) {
+      var tries = 0;
+      function poll() {
+        if (ctx.finished) return resolve();
+        req(pq("runs/" + encodeURIComponent(ctx.runId), ctx.profile)).then(function (st) {
+          var status = st && st.status;
+          if (status === "completed") {
+            runEvent(ctx, "run.completed", { output: st.output });
+          } else if (status === "failed") {
+            runEvent(ctx, "run.failed", { error: st.error || "falha" });
+          } else if (status === "cancelled" || status === "interrupted") {
+            runEvent(ctx, "run.cancelled", {});
+          } else if (status === "waiting_for_approval" && st.approval && !ctx.approvals.length) {
+            runEvent(ctx, "approval.request", st.approval); setTimeout(poll, 3000); return;
+          } else {
+            tries += 1; setTimeout(poll, document.hidden ? 8000 : 2500); return;
+          }
+          resolve();
+        }).catch(function (e) {
+          if (e.message === "login") { finishRun(ctx); return resolve(); }
+          tries += 1;
+          if (tries > 240) { runEvent(ctx, "run.failed", { error: "Não foi possível acompanhar a execução (" + e.message + "). Recarregue a conversa." }); return resolve(); }
+          setTimeout(poll, 5000);
+        });
+      }
+      poll();
+      // ao voltar para o app, confere na hora em vez de esperar o próximo ciclo
+      ctx.onVisible = function () { if (!document.hidden && !ctx.finished) poll(); };
+      document.addEventListener("visibilitychange", ctx.onVisible);
+    }).then(function () { if (ctx.onVisible) document.removeEventListener("visibilitychange", ctx.onVisible); });
+  }
+
+  function finishRun(ctx) {
+    if (ctx.finished) return;
+    ctx.finished = true;
+    savePendingRun(null);
+    state.streaming = false; $("btn-send").disabled = false; setTyping(false);
+    if (ctx.bot.content && ctx.botEl) state.messages.push(ctx.bot);
+    var s = null; for (var i = 0; i < state.sessions.length; i++) if (state.sessions[i].id === ctx.sid) s = state.sessions[i];
+    if (s) { s.preview = ctx.bot.content || ctx.text || "📎 anexo"; s.last_active = Date.now() / 1000; s.message_count = (s.message_count || 0) + 2; }
+    renderSessions();
+    if (state.current && state.current.id === ctx.sid) loadMessages(true);  // sincroniza com o que ficou gravado no servidor
+  }
+
+  // Execução que ficou pendente (app fechado ou recarregado no meio): volta a acompanhar.
+  function resumePendingRun() {
+    var pr = pendingRun();
+    if (!pr || !pr.run_id || state.streaming || !state.current || state.current.id !== pr.sid) return;
+    if (Date.now() - (pr.started || 0) > 2 * 60 * 60 * 1000) { savePendingRun(null); return; }
+    var ctx = { sid: pr.sid, profile: pr.profile, text: pr.text, bot: { role: "assistant", content: "", timestamp: null }, botEl: null, approvals: [], runId: pr.run_id, finished: false };
+    state.streaming = true; $("btn-send").disabled = true;
+    resumeRun(ctx);
   }
 
 
@@ -587,6 +668,6 @@
       .then(function (reg) { if (reg && reg.update) reg.update().catch(function () { }); })
       .catch(function () { });
   }
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) { if (state.current) loadMessages(true); else loadSessions(true); } });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { if (state.current) { if (!state.streaming) loadMessages(true); resumePendingRun(); } else loadSessions(true); } });
   boot();
 })();

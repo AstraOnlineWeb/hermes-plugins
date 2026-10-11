@@ -14,6 +14,7 @@ os canais, como WhatsApp, Telegram, terminal e painel, e continua qualquer uma d
 - **Chat**: respostas em tempo real, Markdown, blocos de código, indicador de "pensando" e de ferramenta em uso.
 - **Imagens**: anexar, colar print ou arrastar. O modelo enxerga a imagem.
 - **Arquivos**: PDF, planilhas, texto e outros, até 25 MB. Ficam em `~/uploads` do agente, que os lê com as ferramentas de arquivo.
+- **Continua em segundo plano**: a resposta é uma execução no servidor. Se você trocar de app, bloquear a tela ou perder a conexão, o agente continua trabalhando; ao voltar, o app retoma o acompanhamento e mostra a resposta completa.
 - **Aprovação de comandos**: quando o agente precisa de autorização para um comando perigoso, o pedido aparece no chat com os botões Permitir uma vez, Permitir nesta conversa, Permitir sempre e Negar.
 - **Modo de autorização**: no botão de configurações da lista de conversas dá para escolher entre sempre perguntar, modo inteligente ou não perguntar. Vale por agente.
 - **Voz**: grava pelo microfone e envia como mensagem de voz, com player para ouvir e a transcrição logo abaixo.

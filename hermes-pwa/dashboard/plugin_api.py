@@ -307,6 +307,65 @@ def serve_upload(name: str):
     return FileResponse(str(path), media_type=media, headers={"Cache-Control": "private, max-age=86400"})
 
 
+# ── execuções em segundo plano (/v1/runs) ─────────────────────────────────────────
+# O chat/stream interrompe o agente quando o cliente some (celular suspende a página). Com /v1/runs o
+# agente continua no servidor; o app acompanha pelos eventos e, se perder a conexão, pelo status.
+
+class RunBody(BaseModel):
+    message: Any  # str ou lista de partes OpenAI (text / image_url)
+
+
+@router.post("/api/sessions/{session_id}/runs")
+async def create_run(session_id: str, body: RunBody, profile: Optional[str] = None) -> Any:
+    msg = body.message
+    if isinstance(msg, str):
+        msg = msg.strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="mensagem vazia")
+    if isinstance(msg, list):
+        for part in msg:
+            if not isinstance(part, dict) or part.get("type") not in ("text", "image_url"):
+                raise HTTPException(status_code=400, detail="partes aceitas: text e image_url")
+        payload: Dict[str, Any] = {"input": [{"role": "user", "content": msg}], "session_id": session_id}
+    else:
+        payload = {"input": msg, "session_id": session_id}
+    return await _proxy_json("POST", f"{_pfx(profile)}/v1/runs", body=payload)
+
+
+@router.get("/api/runs/{run_id}")
+async def run_status(run_id: str, profile: Optional[str] = None) -> Any:
+    if not _RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="execução inválida")
+    return await _proxy_json("GET", f"{_pfx(profile)}/v1/runs/{run_id}")
+
+
+@router.get("/api/runs/{run_id}/events")
+async def run_events(run_id: str, profile: Optional[str] = None):
+    """Repassa o SSE da execução (message.delta, tool.started, approval.request, run.completed...)."""
+    import httpx
+    if not _RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="execução inválida")
+    key = _api_key()
+    pfx = _pfx(profile)
+
+    async def gen():
+        try:
+            async with httpx.AsyncClient(base_url=_api_base(), timeout=httpx.Timeout(30.0, read=None)) as c:
+                async with c.stream("GET", f"{pfx}/v1/runs/{run_id}/events",
+                                    headers={"Authorization": f"Bearer {key}", "Accept": "text/event-stream"}) as r:
+                    if r.status_code >= 400:
+                        text = (await r.aread())[:300].decode(errors="replace")
+                        yield f"event: error\ndata: {json.dumps({'message': text, 'status': r.status_code})}\n\n".encode()
+                        return
+                    async for chunk in r.aiter_bytes():
+                        yield chunk
+        except Exception as exc:
+            yield f"event: error\ndata: {json.dumps({'message': str(exc)})}\n\n".encode()
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @router.post("/api/sessions/{session_id}/chat/stream")
 async def chat_stream(session_id: str, body: ChatBody, profile: Optional[str] = None):
     pfx = _pfx(profile)
